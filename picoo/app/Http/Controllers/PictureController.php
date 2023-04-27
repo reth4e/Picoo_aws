@@ -33,14 +33,16 @@ class PictureController extends Controller
         $picture = new Picture;
 
         $file_name = $request -> file('image') -> getClientOriginalName();
-        $request -> file('image') -> storeAs('public/pictures' , $file_name);
         
+	$request -> file('image') -> storeAs('pictures' , $file_name , 's3');
+
         unset($picture['_token']);
 
 
         $input_tag = $request -> tags;
 
-        $input_tag_to_array = Tag::getTagToArray($input_tag);
+	$input_tag_to_array = Tag::getTagToArray($input_tag);
+	
         if(count($input_tag_to_array)>10){
             return back();
         }
@@ -69,7 +71,6 @@ class PictureController extends Controller
 
         $picture -> tags() -> syncWithoutDetaching($tag_ids);
 
-
         $followers = $login_user -> followers;
         Notification::send($followers, new PictureNotification($picture));
 
@@ -88,7 +89,7 @@ class PictureController extends Controller
         $searched_tag_array = Tag::getTagToArray($searched_tag);
         
         $pictures = Picture::all();
-        if($searched_tag === NULL){
+        if($login_user !== NULL &&  $searched_tag === NULL){
             $param = [
                 'pictures' => Picture::paginate(20),
                 'search_tags' => $searched_tag,
@@ -99,7 +100,25 @@ class PictureController extends Controller
 
         $picture_ids = Picture::getPictureIds($pictures, $searched_tag_array);
 
-        $search_result = Picture::whereIn('id',$picture_ids) -> paginate(20);
+	$search_result = Picture::whereIn('id',$picture_ids) -> paginate(20);
+
+	if(!$login_user && $searched_tag !== NULL){
+            $param = [
+                'pictures' => $search_result,
+                'search_tags' => $searched_tag,
+                'notifications' => NULL,
+            ];
+            return view('pictures',$param);
+        }
+        if(!$login_user && !$searched_tag){
+            $param = [
+                'pictures' => Picture::paginate(20),
+                'search_tags' => $searched_tag,
+                'notifications' => NULL,
+            ];
+            return view('pictures',$param);
+	}
+
         $param = [
             'pictures' => $search_result,
             'search_tags' => $searched_tag,
@@ -110,9 +129,44 @@ class PictureController extends Controller
 
     public function picturePage(Request $request) {
         $login_user = Auth::user();
-        $picture = Picture::where('id',$request->picture_id) -> first();
+	$picture = Picture::where('id',$request->picture_id) -> first();
+
+	if(!$picture && $login_user) {
+            $param = [
+                'picture' => NULL,
+                'tags' => NULL,
+                'comments' => NULL,
+                'search_tags' => NULL,
+                'notifications' => $login_user -> unreadNotifications() -> orderBy('created_at','DESC') -> take(5) -> get(),
+            ];
+
+            return view('picturepage',$param);
+        }
+        if(!$picture && !$login_user){
+            $param = [
+                'picture' => NULL,
+                'tags' => NULL,
+                'comments' => NULL,
+                'search_tags' => NULL,
+                'notifications' => NULL,
+            ];
+
+            return view('picturepage',$param);
+	}
+
         $tags = $picture -> tags;
         $comments = Comment::where('picture_id',$request -> picture_id) -> orderBy('id','desc') -> paginate(10);
+
+	if(!$login_user) {
+            $param = [
+                'picture' => $picture,
+                'tags' => $tags,
+                'comments' => $comments,
+                'search_tags' => NULL,
+                'notifications' => NULL,
+            ];
+            return view('picturepage',$param);
+	}
 
         $param = [
             'picture' => $picture,
@@ -222,7 +276,17 @@ class PictureController extends Controller
     public function popularPage () {
         $login_user = Auth::user();
         $popular_pictures = Picture::orderBy('favorites_count','DESC')->take(20)->get();
-        $popular_users = User::orderBy('followers_count','DESC')->take(20)->get();
+	$popular_users = User::orderBy('followers_count','DESC')->take(20)->get();
+
+	if(!$login_user){
+            $param =[
+                'popular_pictures' => $popular_pictures,
+                'popular_users' => $popular_users,
+                'search_tags' => NULL,
+                'notifications' => NULL,
+            ];
+            return view('popularpage',$param);
+        }
 
         $param =[
             'popular_pictures' => $popular_pictures,

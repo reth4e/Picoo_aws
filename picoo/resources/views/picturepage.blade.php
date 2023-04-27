@@ -2,9 +2,14 @@
 
 @section('main')
     <div class = "container">
-        <div class="picturepage-wrap">
+	<div class="picturepage-wrap">
+	    @if(!$picture)
+                <p class="picturepage-deleted">
+                    お探しの画像は削除されました。
+                </p>
+            @else
             <div class="picturepage-picture">
-                <img src = "../../{{$picture -> file_path}}" alt = "{{$picture->file_path}}" class="picture-img">
+                <img src = "https://picoo-s3.s3.ap-northeast-1.amazonaws.com/pictures/{{$picture -> file_name}}" alt = "{{$picture->file_name}}" class="picture-img">
             </div>
 
             <div class="like">
@@ -79,14 +84,17 @@
 
             @error('content')
                 <p class="error_message red">{{$message}}</p>
-            @enderror
+		@enderror
+
+		@if(Auth::id())
             <div class="picturepage-commentform">
                 <form action = "/pictures/{{$picture -> id}}/comment" method = "post">
                     @csrf
                     <textarea type = "text" placeholder = "コメント追加(1文字以上200文字以内)" name = "comment" rows="10" required></textarea>
                     <input type = "submit" value = "追加">
                 </form>
-            </div>
+	    </div>
+	    @endif
 
             <div class="picturepage-comments">
                 @foreach ($comments as $comment)
@@ -104,19 +112,22 @@
                             <input type = "hidden" name = "_method" value = "DELETE">
                             <button class = "btn btn-delete">×</button>
                         </form>
-                    @else
+			@else
+			@if (auth() -> user)	
                         @if (auth() -> user() -> ngUsers() -> where('ng_user_id', $comment->user->id) -> exists())
                         <a href="/user/{{$comment -> user -> id}}/delete_ng">このユーザーをNG解除</a>
                         @else
                         <p>{{$comment -> content}}</p>
                         <a href="/user/{{$comment -> user -> id}}/add_ng">このユーザーをNG</a>
-                        @endif
+			@endif
+			@endif
                     @endif
                     <p class="picturepage-comment-date">{{$comment -> updated_at}}</p>
                 </div>
                 @endforeach
-            </div>
+	    </div>
+	    {{ $comments -> links('pagination::bootstrap-4') }}
+	@endif
         </div>
-        {{ $comments -> links('pagination::bootstrap-4') }}
     </div>
 @endsection

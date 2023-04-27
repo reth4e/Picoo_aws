@@ -12,7 +12,18 @@ class UserController extends Controller
     public function userPage ($user_id) {
         $login_user = Auth::user();
         $user = User::find($user_id);
-        $pictures = $user -> pictures() -> paginate(20);
+	$pictures = $user -> pictures() -> paginate(20);
+
+	if(!$login_user){
+            $param = [
+                'user' => $user,
+                'pictures' => $pictures,
+                'search_tags' => NULL,
+                'notifications' => NULL,
+            ];
+            return view('userpage',$param);
+	}
+
         $param = [
             'user' => $user,
             'pictures' => $pictures,
@@ -90,9 +101,9 @@ class UserController extends Controller
     public function changeIcon (Request $request) {
         $login_user = Auth::user();
         $icon_name = $request -> file('image') -> getClientOriginalName();
-        $request -> file('image') -> storeAs('public/icons' , $icon_name);
-
-        $login_user -> icon_path = 'storage/icons/' . $icon_name;
+        
+	$request -> file('image') -> storeAs('icons' , $icon_name , 's3');
+        $login_user -> icon_path = 'https://picoo-s3.s3.ap-northeast-1.amazonaws.com/icons/' . $icon_name;
         unset($login_user['_token']);
         $login_user -> save();
         return back();
